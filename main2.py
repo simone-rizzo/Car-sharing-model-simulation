@@ -37,7 +37,7 @@ def initializer(env, cariche):
 
 def consumer(name, env, cariche, scariche):
     print(name, 'requesting car at', env.now)
-    item = yield cariche.get()
+    item = yield cariche.get() | env.timeout(30)
     print(name, 'got', item.nome, 'at', env.now)
     yield env.timeout(3)
     # parcheggia la macchina
