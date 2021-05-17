@@ -1,7 +1,7 @@
 import simpy
 """
-    Estenzione della classe Resource, per tenere traccia dell'utilizzo delle risorse
-    per poter visualizzazre i grafici.
+    Extention of Resource class, to keep track of uses of resources
+    to plot charts.
 """
 
 class MonitoredResource(simpy.Resource):
