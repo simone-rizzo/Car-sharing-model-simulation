@@ -12,27 +12,28 @@ from monitor_resource import MonitoredResource
     1 time-step = 1 minutes      
 """
 
+
 class Customer(object):
 
     def __init__(self, env, avaible, dead, t_spawn, usage_time, n_max_cust, end_simulation):
-        self.env                = env
-        self.cars_avaible       = avaible
-        self.cars_dead          = dead
-        self.action             = env.process(self.run())
-        self.c_customers        = 0
-        self.s_customers        = 0
-        self.p_customers        = 0
-        self.c_cars             = 0
-        self.a_customers        = 0
-        self.h_a_cust           = []
-        self.h_customers        = []
-        self.h_served           = []
-        self.h_resources        = []
-        self.h_p_customers      = []
-        self.h_cars             = []
-        self.t_spawn            = t_spawn
-        self.t_usage            = usage_time
-        self.n_max_cust       = n_max_cust
+        self.env = env
+        self.cars_avaible = avaible
+        self.cars_dead = dead
+        self.action = env.process(self.run())
+        self.c_customers = 0
+        self.s_customers = 0
+        self.p_customers = 0
+        self.c_cars = 0
+        self.a_customers = 0
+        self.h_a_cust = []
+        self.h_customers = []
+        self.h_served = []
+        self.h_resources = []
+        self.h_p_customers = []
+        self.h_cars = []
+        self.t_spawn = t_spawn
+        self.t_usage = usage_time
+        self.n_max_cust = n_max_cust
         self.fine = end_simulation
 
     def run(self):
@@ -60,7 +61,7 @@ class Customer(object):
                 print(name + " si è spazientito ed ha chiamato il taxi")
                 self.customer_impatient()
         else:
-            yield car_event # took car
+            yield car_event  # took car
             self.env.process(self.customer_travel(name, car_event))
 
     def customer_travel(self, name, car_event):
@@ -129,14 +130,17 @@ def single_operator(env, name, cars_avaible, cars_dead, n_cars_to_take):
         count_auto_in_carica -= 1
         charged_cars_list.append((env.now, count_auto_in_carica))
 
-def operator(env, avaible, dead):
+
+def operator(env, name, avaible, dead):
     global count_auto_in_carica
     global charged_cars_list
     while True:
         item = yield dead.get()
         count_auto_in_carica += 1
         charged_cars_list.append((env.now, count_auto_in_carica))
+        print(name + " turn: " + str(i) + " " + item.nome + " taken for charging at time: %d" % env.now)
         yield env.timeout(CHARGE_TIME)
+        print(name + " " + item.nome +" charge completed time: %d" % env.now)
         item.carica()
         avaible.put(item)
         count_auto_in_carica -= 1
@@ -145,19 +149,20 @@ def operator(env, avaible, dead):
 
 def initializer(env, cars_avaible):
     for i in range(cars_avaible.capacity):
-        yield cars_avaible.put(Car("car"+str(i), AUTO_AUTONOMY))
+        yield cars_avaible.put(Car("car" + str(i), AUTO_AUTONOMY))
+
 
 """ Parameters list """
-CAR_USAGE_TIME = (28, 35)       # Range of time of use of a car
-USER_SPAWN_TIME = (1, 2)        # Arrival time range of new users
-CARS_NUMBER = 20                # Number of cars
-MAX_NUMB_USERS = 200            # Max number of users, if -1 it generates infinite users
-MIN_PATIENCE = 8                # Min. customer patience, -1 if we would take off patience
-MAX_PATIENCE = 20               # Max. customer patience
-AUTO_AUTONOMY = 200             # Autonomy of a car
-CHARGE_TIME = 60                # Time to recharge the car
-OPERATORS_NUMBER = 5            # Number of Operators who charge the car
-RUN_UNTIL = -1                  # Run until this time 0 to let the users end coming
+CAR_USAGE_TIME = (28, 35)  # Range of time of use of a car
+USER_SPAWN_TIME = (1, 2)  # Arrival time range of new users
+CARS_NUMBER = 20  # Number of cars
+MAX_NUMB_USERS = 200  # Max number of users, if -1 it generates infinite users
+MIN_PATIENCE = 8  # Min. customer patience, -1 if we would take off patience
+MAX_PATIENCE = 20  # Max. customer patience
+AUTO_AUTONOMY = 200  # Autonomy of a car
+CHARGE_TIME = 60  # Time to recharge the car
+OPERATORS_NUMBER = 20  # Number of Operators who charge the car
+RUN_UNTIL = -1  # Run until this time 0 to let the users end coming
 
 """ RUN simulation """
 end_simulation = False
@@ -167,12 +172,13 @@ charged_cars_list = []
 count_auto_in_carica = 0
 
 env = simpy.Environment()
-cars_avaible = simpy.Store(env, capacity=CARS_NUMBER) # Defining the cars as Resources
+cars_avaible = simpy.Store(env, capacity=CARS_NUMBER)  # Defining the cars as Resources
 cars_dead = simpy.Store(env, capacity=CARS_NUMBER)
-env.process(initializer(env, cars_avaible)) # Inizialization avaible cars
+env.process(initializer(env, cars_avaible))  # Inizialization avaible cars
 for i in range(OPERATORS_NUMBER):
-    env.process(operator(env, cars_avaible, cars_dead))
-generator = Customer(env, cars_avaible, cars_dead, USER_SPAWN_TIME, CAR_USAGE_TIME, MAX_NUMB_USERS, end_simulation=end_simulation)
+    env.process(operator(env, "Operator" + str(i), cars_avaible, cars_dead))
+generator = Customer(env, cars_avaible, cars_dead, USER_SPAWN_TIME, CAR_USAGE_TIME, MAX_NUMB_USERS,
+                     end_simulation=end_simulation)
 if RUN_UNTIL <= 0:
     env.run()
 else:
