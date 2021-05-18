@@ -46,54 +46,72 @@ class Customer(object):
 
     def single_customer(self, name):
         print(name + " arrived at time: %d " % self.env.now)
-        self.c_customers += 1
-        self.h_customers.append((self.env.now, self.c_customers))
+        self.customer_enter_in_the_system()
         print("Cars avaibles: " + str(len(self.cars_avaible.items)))
-        impatient = False
-        self.a_customers += 1
-        self.h_a_cust.append((env.now, self.a_customers))
-        item = self.cars_avaible.get()
-        if (MIN_PATIENCE >= 0):
+        car_event = self.cars_avaible.get()
+        self.customer_start_waiting()
+        if MIN_PATIENCE > 0:
             patience = random.uniform(MIN_PATIENCE, MAX_PATIENCE)
-            result = yield item | env.timeout(patience) #car get
-            self.a_customers -= 1
-            self.h_a_cust.append((env.now, self.a_customers))
-            if item in result:
-                print(name + " automobile taken at the time: %d" % self.env.now)
-                self.c_cars += 1
-                self.h_cars.append((self.env.now, self.c_cars))
-                t_travel = random.uniform(self.t_usage[0], self.t_usage[1])
-                yield self.env.timeout(t_travel)
+            patience_event = env.timeout(patience)
+            res = yield car_event | patience_event
+            if car_event in res:
+                self.env.process(self.customer_travel(name, car_event))
             else:
-                impatient = True
                 print(name + " si è spazientito ed ha chiamato il taxi")
-                self.p_customers += 1
-                self.h_p_customers.append((self.env.now, self.p_customers))
+                self.customer_impatient()
         else:
-            yield item
-            print(name + " automobile taken at the time: %d" % self.env.now)
-            self.c_cars += 1
-            self.h_cars.append((self.env.now, self.c_cars))
-            t_travel = random.uniform(self.t_usage[0], self.t_usage[1])
-            yield self.env.timeout(t_travel)
+            yield car_event # took car
+            self.env.process(self.customer_travel(name, car_event))
 
-        if impatient:
-            print(name + " si è spazientito ed ha chiamato il taxi")
-            self.p_customers += 1
-            self.h_p_customers.append((self.env.now, self.p_customers))
+    def customer_travel(self, name, car_event):
+        self.car_in_use()
+        self.customer_end_waiting()
+        car = car_event.value
+        print(name, 'got', car.nome, 'at', env.now)
+        t_travel = random.uniform(self.t_usage[0], self.t_usage[1])
+        yield self.env.timeout(t_travel)  # do travel
+        res = car.aggiorna_capienza(t_travel)
+        if res:
+            self.cars_avaible.put(car)
         else:
-            self.s_customers += 1
-            self.c_cars -= 1
-            print(name + " automobile released time: %d" % self.env.now)
-            res = item.value.aggiorna_capienza(t_travel)
-            if res:
-                self.cars_avaible.put(item)
-            else:
-                self.cars_dead.put(item)
+            self.cars_dead.put(car)
+        self.car_released()
+        self.customer_exit_from_the_system()
+        self.customer_served()
+
+    def customer_enter_in_the_system(self):
+        self.c_customers += 1
+        self.h_customers.append((self.env.now, self.c_customers))  # customer in the system
+
+    def customer_exit_from_the_system(self):
         self.c_customers -= 1
-        self.h_cars.append((self.env.now, self.c_cars))
-        self.h_served.append((self.env.now, self.s_customers))
-        self.h_customers.append((self.env.now, self.c_customers))
+        self.h_customers.append((self.env.now, self.c_customers))  # customer in the system
+
+    def customer_start_waiting(self):
+        self.a_customers += 1
+        self.h_a_cust.append((env.now, self.a_customers))  # customer waiting
+
+    def customer_end_waiting(self):
+        self.a_customers -= 1
+        self.h_a_cust.append((env.now, self.a_customers))  # customer waiting
+
+    def car_in_use(self):
+        self.c_cars += 1
+        self.h_cars.append((self.env.now, self.c_cars))  # car in use by customer
+
+    def car_released(self):
+        self.c_cars -= 1
+        self.h_cars.append((self.env.now, self.c_cars))  # car in use by customer
+
+    def customer_served(self):
+        self.s_customers += 1
+        self.h_served.append((self.env.now, self.s_customers))  # customer served
+
+    def customer_impatient(self):
+        self.p_customers += 1
+        self.h_p_customers.append((self.env.now, self.p_customers))
+        self.customer_end_waiting()
+        self.customer_exit_from_the_system()
 
 
 def single_operator(env, name, cars_avaible, cars_dead, n_cars_to_take):
@@ -110,14 +128,6 @@ def single_operator(env, name, cars_avaible, cars_dead, n_cars_to_take):
         cars_avaible.put(item)
         count_auto_in_carica -= 1
         charged_cars_list.append((env.now, count_auto_in_carica))
-
-
-def control_n_auto(env, cars, dead, avaible, incharge):
-    while True and not end_simulation:
-        yield env.timeout(1)
-        avaible.append((env.now, len(cars.items)))
-        incharge.append((env.now, len(dead.items)))
-
 
 def operator(env, avaible, dead):
     global count_auto_in_carica
@@ -139,13 +149,13 @@ def initializer(env, cars_avaible):
 
 """ Parameters list """
 CAR_USAGE_TIME = (28, 35)       # Range of time of use of a car
-USER_SPAWN_TIME = (1, 4)        # Arrival time range of new users
-CARS_NUMBER = 7                 # Number of cars
-MAX_NUMB_USERS = 150            # Max number of users, if -1 it generates infinite users
-MIN_PATIENCE = 1                # Min. customer patience, -1 if we would take off patience
-MAX_PATIENCE = 13               # Max. customer patience
+USER_SPAWN_TIME = (1, 2)        # Arrival time range of new users
+CARS_NUMBER = 20                # Number of cars
+MAX_NUMB_USERS = 200            # Max number of users, if -1 it generates infinite users
+MIN_PATIENCE = 8                # Min. customer patience, -1 if we would take off patience
+MAX_PATIENCE = 20               # Max. customer patience
 AUTO_AUTONOMY = 200             # Autonomy of a car
-CHARGE_TIME = 40                # Time to recharge the car
+CHARGE_TIME = 60                # Time to recharge the car
 OPERATORS_NUMBER = 5            # Number of Operators who charge the car
 RUN_UNTIL = -1                  # Run until this time 0 to let the users end coming
 
@@ -159,9 +169,9 @@ count_auto_in_carica = 0
 env = simpy.Environment()
 cars_avaible = simpy.Store(env, capacity=CARS_NUMBER) # Defining the cars as Resources
 cars_dead = simpy.Store(env, capacity=CARS_NUMBER)
-env.process(initializer(env, cars_avaible)) #Inizializza le auto disponibili
+env.process(initializer(env, cars_avaible)) # Inizialization avaible cars
 for i in range(OPERATORS_NUMBER):
-    env.process(operator(env, cars_avaible, cars_dead)) #Inizializza le auto scariche
+    env.process(operator(env, cars_avaible, cars_dead))
 generator = Customer(env, cars_avaible, cars_dead, USER_SPAWN_TIME, CAR_USAGE_TIME, MAX_NUMB_USERS, end_simulation=end_simulation)
 if RUN_UNTIL <= 0:
     env.run()
@@ -176,12 +186,14 @@ x2, y2 = (list(zip(*generator.h_customers)))
 plt.plot(x2, y2, label='Customers in the system')
 x3, y3 = (list(zip(*generator.h_served)))
 plt.plot(x3, y3, label="Total served customers")
-x4, y4 = (list(zip(*generator.h_p_customers)))
-plt.plot(x4, y4, label="Impatient customers")
+if generator.h_p_customers != []:
+    x4, y4 = (list(zip(*generator.h_p_customers)))
+    plt.plot(x4, y4, label="Impatient customers")
 x6, y6 = (list(zip(*generator.h_cars)))
 plt.plot(x6, y6, label="Car in use by customers")
-# x7, y7 = (list(zip(*charged_cars_list)))
-# plt.plot(x7, y7, label="Cars in charge")
+if charged_cars_list != []:
+    x7, y7 = (list(zip(*charged_cars_list)))
+    plt.plot(x7, y7, label="Cars in charge")
 plt.xlabel("Time step")
 plt.legend()
 plt.show()

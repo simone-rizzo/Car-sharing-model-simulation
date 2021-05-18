@@ -37,15 +37,27 @@ def initializer(env, cariche):
 
 def consumer(name, env, cariche, scariche):
     print(name, 'requesting car at', env.now)
-    item = yield cariche.get() | env.timeout(30)
-    print(name, 'got', item.nome, 'at', env.now)
-    yield env.timeout(3)
-    # parcheggia la macchina
-    res = item.aggiorna_capienza(3)
-    if res:
-        cariche.put(item)
-    else:
-        scariche.put(item)
+    t1 = cariche.get()
+    t2 = env.timeout(30)
+    item = yield t1 | t2
+    if t1 in item:
+        try:
+            car = t1.value
+            print(name, 'got', car.nome, 'at', env.now)
+            yield env.timeout(5)
+            res = car.aggiorna_capienza(5)
+            if res:
+                cariche.put(car)
+            else:
+                scariche.put(car)
+
+        except AttributeError:
+            print("attribute error")
+
+        # parcheggia la macchina
+
+    elif t2 in item:
+        print(name, "si è scocciato at ", env.now)
 
 
 def ricarcia(env,cariche, scariche):
