@@ -9,12 +9,12 @@ class Car:
         self.capienza_max = capienza
         self.capienza = capienza
 
-    def aggiorna_capienza(self, tempo):
+    def decrease_battery(self, tempo):
         self.capienza -= tempo
         if self.capienza>0:
             return True
         else:
             return False
 
-    def carica(self):
+    def charge_battery(self):
         self.capienza=self.capienza_max

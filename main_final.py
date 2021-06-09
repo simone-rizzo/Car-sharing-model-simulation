@@ -63,7 +63,7 @@ class Customer(object):
             if car_event in res:
                 self.env.process(self.customer_travel(name, car_event)) # do travel
             else:
-                print(name + " si è spazientito ed ha chiamato il taxi")
+                print(name + " called the taxi")
                 self.customer_impatient()
         else:
             yield car_event  # took car
@@ -76,7 +76,7 @@ class Customer(object):
         print(name, 'got', car.nome, 'at', int(self.env.now))
         t_travel = int(random.uniform(self.t_usage[0], self.t_usage[1]))
         yield self.env.timeout(t_travel)  # do travel
-        res = car.aggiorna_capienza(t_travel) # decrease the battery in base of the amount of time of the travel
+        res = car.decrease_battery(t_travel) # decrease the battery in base of the amount of time of the travel
         if res:
             self.cars_avaible.put(car)
         else:
@@ -150,7 +150,7 @@ def operator(env, name, avaible, dead):
         print(name + " turn: " + str(i) + " " + item.nome + " taken for charging at time: %d" % env.now)
         yield env.timeout(CHARGE_TIME)
         print(name + " " + item.nome +" charge completed time: %d" % env.now)
-        item.carica()
+        item.charge_battery()
         avaible.put(item)
         count_auto_in_carica -= 1
         charged_cars_list.append((env.now, count_auto_in_carica))
@@ -183,8 +183,9 @@ count_auto_in_carica = 0
 env = simpy.Environment()
 cars_avaible = simpy.Store(env, capacity=CARS_NUMBER)  # Defining avaible_cars as Store Resources
 cars_dead = simpy.Store(env, capacity=CARS_NUMBER)	   # Defining dead_cars as Store Resources
-env.process(initializer(env, cars_avaible))  # Inizialization avaible cars
-for i in range(OPERATORS_NUMBER):
+env.process(initializer(env, cars_avaible))            # Initialization avaible cars
+
+for i in range(OPERATORS_NUMBER):                      # Initialization Operators
     env.process(operator(env, "Operator" + str(i), cars_avaible, cars_dead))
 generator = Customer(env, cars_avaible, cars_dead, USER_SPAWN_TIME, CAR_USAGE_TIME, MAX_NUMB_USERS,
                      end_simulation=end_simulation)
